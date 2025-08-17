@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  category  String
+  variants  Variant[]
+  campaigns MarketingCampaign[]
+
+  @@map("products")
+}
+
+model Variant {
+  sku                   String            @id
+  product               Product           @relation(fields: [productId], references: [id])
+  productId             String            @db.Uuid
+  size                  String
+  color                 String
+  costPrice             Decimal           @map("cost_price")
+  standardSellingPrice  Decimal           @map("standard_selling_price")
+  stockOnHand           Int               @map("stock_on_hand")
+  orderLineItems        OrderLineItem[]
+
+  @@map("variants")
+}
+
+model ShippingZone {
+  wilaya          String  @id
+  stopdeskPrice   Decimal @map("stopdesk_price")
+  domicilePrice   Decimal @map("domicile_price")
+  orders          Order[]
+
+  @@map("shipping_zones")
+}
+
+model CurrencyPurchase {
+  id              String   @id @default(uuid()) @db.Uuid
+  purchaseDate    DateTime @map("purchase_date")
+  currency        String
+  amountBought    Decimal  @map("amount_bought")
+  exchangeRatePaid Decimal @map("exchange_rate_paid")
+
+  @@map("currency_purchases")
+}
+
+enum MarketingCampaignStatus {
+  ACTIVE
+  PENDING
+  PAUSED
+  ENDED
+}
+
+model MarketingCampaign {
+  id              String                  @id @default(uuid()) @db.Uuid
+  campaignName    String                  @map("campaign_name")
+  product         Product?                @relation(fields: [productId], references: [id])
+  productId       String?                 @db.Uuid
+  budgetAllocated Decimal                 @map("budget_allocated")
+  startDate       DateTime                @map("start_date")
+  endDate         DateTime                @map("end_date")
+  status          MarketingCampaignStatus
+
+  @@map("marketing_campaigns")
+}
+
+enum OrderStatus {
+  NEW
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+enum ShippingMethod {
+  STOPDESK
+  DOMICILE
+}
+
+model Order {
+  id              String           @id @default(uuid()) @db.Uuid
+  customerName    String           @map("customer_name")
+  phoneNumber     String           @map("phone_number")
+  address         String
+  orderDate       DateTime         @default(now()) @map("order_date")
+  status          OrderStatus      @default(NEW)
+  discount        Decimal?         @default(0)
+  shippingMethod  ShippingMethod   @map("shipping_method")
+  shippingZone    ShippingZone     @relation(fields: [wilaya], references: [wilaya])
+  wilaya          String
+  note            String?
+  lineItems       OrderLineItem[]
+  ledgerEntries   FinancesLedger[]
+
+  @@map("orders")
+}
+
+model OrderLineItem {
+  id              String  @id @default(uuid()) @db.Uuid
+  order           Order   @relation(fields: [orderId], references: [id])
+  orderId         String  @db.Uuid
+  variant         Variant @relation(fields: [sku], references: [sku])
+  sku             String
+  quantity        Int
+  actualSalePrice Decimal @map("actual_sale_price")
+
+  @@map("order_line_items")
+}
+
+model FinancesLedger {
+  id              String   @id @default(uuid()) @db.Uuid
+  transactionName String   @map("transaction_name")
+  date            DateTime @default(now())
+  type            String // e.g., "Collected_Revenue", "COGS", "Marketing_Allocation", "Return_Fee"
+  moneyIn         Decimal  @map("money_in")
+  moneyOut        Decimal  @map("money_out")
+  order           Order?   @relation(fields: [orderId], references: [id])
+  orderId         String?  @db.Uuid
+
+  @@map("finances_ledger")
+}

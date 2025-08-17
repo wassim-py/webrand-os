@@ -1,0 +1,21 @@
+{
+  "name": "we-brand-os",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A comprehensive E-commerce Operating System for a modern clothing brand.",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run web --workspace=frontend"
+  },
+  "keywords": [
+    "ecommerce",
+    "inventory-management",
+    "order-management"
+  ],
+  "author": "WE Brand",
+  "license": "ISC"
+}
