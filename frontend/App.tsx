@@ -1,11 +1,11 @@
 import React from 'react';
-import AddProductScreen from './src/screens/AddProductScreen';
+import CreateOrderScreen from './src/screens/CreateOrderScreen';
 import { StatusBar } from 'expo-status-bar';
 
 export default function App() {
   return (
     <>
-      <AddProductScreen />
+      <CreateOrderScreen />
       <StatusBar style="auto" />
     </>
   );
