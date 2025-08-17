@@ -1,11 +1,11 @@
 import React from 'react';
-import CreateOrderScreen from './src/screens/CreateOrderScreen';
+import FinancesLedgerScreen from './src/screens/FinancesLedgerScreen';
 import { StatusBar } from 'expo-status-bar';
 
 export default function App() {
   return (
     <>
-      <CreateOrderScreen />
+      <FinancesLedgerScreen />
       <StatusBar style="auto" />
     </>
   );
