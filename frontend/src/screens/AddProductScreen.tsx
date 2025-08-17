@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import apiClient from '../api/client';
 
-// Using colors from SRS
 const COLORS = {
   lightBg: '#F7F7F8',
   white: '#FFFFFF',
@@ -9,6 +9,7 @@ const COLORS = {
   secondaryText: '#8A8A8E',
   primaryAccent: '#6474E5',
   lightGray: '#EFEFEF',
+  error: '#FF3B30',
 };
 
 const styles = StyleSheet.create({
@@ -70,6 +71,7 @@ const AddProductScreen = () => {
     const [productName, setProductName] = useState('');
     const [productCategory, setProductCategory] = useState('');
     const [variants, setVariants] = useState([{ sku: '', size: '', color: '', costPrice: '', standardSellingPrice: '', stockOnHand: '' }]);
+    const [loading, setLoading] = useState(false);
 
     const handleAddVariant = () => {
         setVariants([...variants, { sku: '', size: '', color: '', costPrice: '', standardSellingPrice: '', stockOnHand: '' }]);
@@ -81,20 +83,43 @@ const AddProductScreen = () => {
         setVariants(newVariants);
     };
 
-    const handleSubmit = () => {
-        console.log('Submitting Product:');
+    const removeVariant = (index: number) => {
+        const newVariants = [...variants];
+        newVariants.splice(index, 1);
+        setVariants(newVariants);
+    };
+
+    const handleSubmit = async () => {
+        if (!productName || !productCategory || variants.some(v => !v.sku || !v.size || !v.color || !v.costPrice || !v.standardSellingPrice || !v.stockOnHand)) {
+            Alert.alert('Validation Error', 'Please fill all fields for the product and all its variants.');
+            return;
+        }
+
         const productData = {
             productData: { name: productName, category: productCategory },
-            // Basic conversion for demo purposes
             variantsData: variants.map(v => ({
-                ...v,
-                costPrice: parseFloat(v.costPrice) || 0,
-                standardSellingPrice: parseFloat(v.standardSellingPrice) || 0,
-                stockOnHand: parseInt(v.stockOnHand, 10) || 0,
+                sku: v.sku,
+                size: v.size,
+                color: v.color,
+                costPrice: parseFloat(v.costPrice),
+                standardSellingPrice: parseFloat(v.standardSellingPrice),
+                stockOnHand: parseInt(v.stockOnHand, 10),
             })),
         };
-        console.log(JSON.stringify(productData, null, 2));
-        // In a real app, you'd call the API here
+
+        setLoading(true);
+        try {
+            await apiClient.post('/products', productData);
+            Alert.alert('Success', 'Product created successfully!');
+            // Reset form
+            setProductName('');
+            setProductCategory('');
+            setVariants([{ sku: '', size: '', color: '', costPrice: '', standardSellingPrice: '', stockOnHand: '' }]);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to create product. The SKU might already exist.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -103,18 +128,8 @@ const AddProductScreen = () => {
                 <Text style={styles.title}>Add New Product</Text>
 
                 <Text style={styles.sectionTitle}>Product Details</Text>
-                <TextInput
-                    style={styles.input}
-                    placeholder="Product Name (e.g., Classic T-Shirt)"
-                    value={productName}
-                    onChangeText={setProductName}
-                />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Category (e.g., Apparel)"
-                    value={productCategory}
-                    onChangeText={setProductCategory}
-                />
+                <TextInput style={styles.input} placeholder="Product Name (e.g., Classic T-Shirt)" value={productName} onChangeText={setProductName} />
+                <TextInput style={styles.input} placeholder="Category (e.g., Apparel)" value={productCategory} onChangeText={setProductCategory} />
 
                 <Text style={styles.sectionTitle}>Variants</Text>
                 {variants.map((variant, index) => (
@@ -129,6 +144,7 @@ const AddProductScreen = () => {
                             <TextInput style={[styles.input, styles.variantInput]} placeholder="Cost Price" value={variant.costPrice} onChangeText={(text) => handleVariantChange(text, index, 'costPrice')} keyboardType="numeric" />
                             <TextInput style={[styles.input, styles.variantInput]} placeholder="Selling Price" value={variant.standardSellingPrice} onChangeText={(text) => handleVariantChange(text, index, 'standardSellingPrice')} keyboardType="numeric" />
                         </View>
+                        {variants.length > 1 && <TouchableOpacity onPress={() => removeVariant(index)}><Text style={{color: COLORS.error, textAlign: 'right'}}>Remove Variant</Text></TouchableOpacity>}
                     </View>
                 ))}
 
@@ -136,8 +152,8 @@ const AddProductScreen = () => {
                     <Text style={styles.secondaryButtonText}>+ Add Another Variant</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit}>
-                    <Text style={styles.primaryButtonText}>Submit Product</Text>
+                <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} disabled={loading}>
+                    {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.primaryButtonText}>Submit Product</Text>}
                 </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>

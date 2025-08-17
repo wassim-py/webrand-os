@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, FlatList, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, FlatList, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import apiClient from '../api/client';
+import { Picker } from '@react-native-picker/picker';
 
-// Using colors from SRS
 const COLORS = {
   lightBg: '#F7F7F8',
   white: '#FFFFFF',
@@ -22,11 +23,10 @@ interface MarketingCampaign {
   status: CampaignStatus;
 }
 
-const MOCK_CAMPAIGNS: MarketingCampaign[] = [
-    { id: '1', campaignName: 'Summer Sale 2025', budgetAllocated: 5000, startDate: '2025-06-01', endDate: '2025-08-31', status: 'ACTIVE' },
-    { id: '2', campaignName: 'Black Friday Push', budgetAllocated: 10000, startDate: '2025-11-20', endDate: '2025-11-30', status: 'PENDING' },
-    { id: '3', campaignName: 'Spring Collection Launch', budgetAllocated: 3000, startDate: '2025-03-01', endDate: '2025-04-30', status: 'ENDED' },
-];
+interface Product {
+    id: string;
+    name: string;
+}
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.lightBg },
@@ -34,6 +34,7 @@ const styles = StyleSheet.create({
     title: { fontSize: 24, fontWeight: 'bold', marginBottom: 10, color: COLORS.primaryText },
     sectionTitle: { fontSize: 18, fontWeight: '500', marginTop: 20, marginBottom: 10, color: COLORS.primaryText },
     input: { backgroundColor: COLORS.white, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.lightGray, marginBottom: 10, fontSize: 16 },
+    pickerContainer: { backgroundColor: COLORS.white, borderRadius: 12, borderWidth: 1, borderColor: COLORS.lightGray, marginBottom: 10 },
     listItem: { padding: 15, backgroundColor: COLORS.white, borderRadius: 16, marginBottom: 10 },
     campaignName: { fontSize: 16, fontWeight: 'bold', color: COLORS.primaryText },
     campaignDetails: { fontSize: 14, color: COLORS.secondaryText, marginTop: 4 },
@@ -42,32 +43,75 @@ const styles = StyleSheet.create({
 });
 
 const MarketingScreen = () => {
-    const [campaigns, setCampaigns] = useState(MOCK_CAMPAIGNS);
+    const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Form state
     const [campaignName, setCampaignName] = useState('');
     const [budget, setBudget] = useState('');
+    const [productId, setProductId] = useState<string | undefined>();
+    const [startDate, setStartDate] = useState(''); // Should be a date picker
+    const [endDate, setEndDate] = useState(''); // Should be a date picker
 
-    const handleAddCampaign = () => {
-        if (!campaignName || !budget) return;
-        const newCampaign: MarketingCampaign = {
-            id: (campaigns.length + 1).toString(),
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [campaignsRes, productsRes] = await Promise.all([
+                apiClient.get('/marketing/campaigns'),
+                apiClient.get('/products'), // Assuming this returns all products
+            ]);
+            setCampaigns(campaignsRes.data);
+            setProducts(productsRes.data.map((p: any) => ({ id: p.productId, name: p.product.name })));
+        } catch (error) {
+            Alert.alert('Error', 'Failed to fetch marketing data.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleAddCampaign = async () => {
+        if (!campaignName || !budget || !startDate || !endDate) {
+            Alert.alert('Validation Error', 'Please fill all required fields.');
+            return;
+        }
+
+        const newCampaign = {
             campaignName,
             budgetAllocated: parseFloat(budget),
-            startDate: new Date().toISOString().split('T')[0], // Today
-            endDate: '', // Should be a date picker
+            productId,
+            startDate,
+            endDate,
             status: 'PENDING',
         };
-        setCampaigns([...campaigns, newCampaign]);
-        setCampaignName('');
-        setBudget('');
+
+        try {
+            const response = await apiClient.post('/marketing/campaigns', newCampaign);
+            setCampaigns([...campaigns, response.data]);
+            // Reset form
+            setCampaignName('');
+            setBudget('');
+            setProductId(undefined);
+            setStartDate('');
+            setEndDate('');
+        } catch (error) {
+            Alert.alert('Error', 'Failed to create campaign.');
+        }
     };
 
     const renderItem = ({ item }: { item: MarketingCampaign }) => (
         <View style={styles.listItem}>
             <Text style={styles.campaignName}>{item.campaignName} ({item.status})</Text>
-            <Text style={styles.campaignDetails}>Budget: ${item.budgetAllocated.toLocaleString()}</Text>
-            <Text style={styles.campaignDetails}>Dates: {item.startDate} to {item.endDate || 'N/A'}</Text>
+            <Text style={styles.campaignDetails}>Budget: ${Number(item.budgetAllocated).toLocaleString()}</Text>
+            <Text style={styles.campaignDetails}>Dates: {new Date(item.startDate).toLocaleDateString()} to {new Date(item.endDate).toLocaleDateString()}</Text>
         </View>
     );
+
+    if (loading) return <ActivityIndicator style={{ flex: 1, justifyContent: 'center' }} size="large" />;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -78,13 +122,22 @@ const MarketingScreen = () => {
                     data={campaigns}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
-                    scrollEnabled={false} // Disable scrolling for the list inside a ScrollView
+                    scrollEnabled={false}
                 />
 
-                <View style={{marginTop: 20}}>
+                <View style={{ marginTop: 20 }}>
                     <Text style={styles.sectionTitle}>Create New Campaign</Text>
                     <TextInput style={styles.input} placeholder="Campaign Name" value={campaignName} onChangeText={setCampaignName} />
                     <TextInput style={styles.input} placeholder="Budget Allocated" value={budget} onChangeText={setBudget} keyboardType="numeric" />
+                    <View style={styles.pickerContainer}>
+                        <Picker selectedValue={productId} onValueChange={(itemValue) => setProductId(itemValue)}>
+                            <Picker.Item label="Select Product (Optional)" value={undefined} />
+                            {products.map(p => <Picker.Item key={p.id} label={p.name} value={p.id} />)}
+                        </Picker>
+                    </View>
+                    <TextInput style={styles.input} placeholder="Start Date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
+                    <TextInput style={styles.input} placeholder="End Date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
+
                     <TouchableOpacity style={styles.primaryButton} onPress={handleAddCampaign}>
                         <Text style={styles.primaryButtonText}>Add Campaign</Text>
                     </TouchableOpacity>

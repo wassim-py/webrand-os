@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import apiClient from '../api/client';
 
 // Using colors from SRS
 const COLORS = {
@@ -12,7 +13,6 @@ const COLORS = {
   gray: '#8D8D93', // Gray for 'CANCELLED' or 'RETURNED'
 };
 
-// Based on the Prisma schema
 type OrderStatus = 'NEW' | 'SHIPPED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED';
 
 interface Order {
@@ -20,16 +20,11 @@ interface Order {
   customerName: string;
   orderDate: string;
   status: OrderStatus;
-  totalPrice: number;
+  lineItems: {
+    quantity: number;
+    actualSalePrice: number;
+  }[];
 }
-
-const MOCK_ORDERS: Order[] = [
-  { id: 'ORD-001', customerName: 'John Doe', orderDate: '2025-08-17', status: 'DELIVERED', totalPrice: 80.00 },
-  { id: 'ORD-002', customerName: 'Jane Smith', orderDate: '2025-08-17', status: 'SHIPPED', totalPrice: 55.00 },
-  { id: 'ORD-003', customerName: 'Peter Jones', orderDate: '2025-08-16', status: 'NEW', totalPrice: 25.00 },
-  { id: 'ORD-004', customerName: 'Mary Williams', orderDate: '2025-08-15', status: 'RETURNED', totalPrice: 75.00 },
-  { id: 'ORD-005', customerName: 'David Brown', orderDate: '2025-08-14', status: 'CANCELLED', totalPrice: 50.00 },
-];
 
 const statusColors: { [key in OrderStatus]: string } = {
   NEW: COLORS.primaryAccent,
@@ -46,6 +41,30 @@ const StatusBadge = ({ status }: { status: OrderStatus }) => (
 );
 
 const OrderListScreen = () => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await apiClient.get('/orders');
+        setOrders(response.data);
+      } catch (err) {
+        setError('Failed to fetch orders.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, []);
+
+  const calculateTotalPrice = (lineItems: Order['lineItems']) => {
+    return lineItems.reduce((total, item) => total + item.quantity * Number(item.actualSalePrice), 0);
+  };
+
   const renderItem = ({ item }: { item: Order }) => (
     <View style={styles.row}>
       <View style={styles.orderDetails}>
@@ -54,17 +73,33 @@ const OrderListScreen = () => {
         <Text style={styles.date}>{new Date(item.orderDate).toLocaleDateString()}</Text>
       </View>
       <View style={styles.orderStatus}>
-        <Text style={styles.price}>${item.totalPrice.toFixed(2)}</Text>
+        <Text style={styles.price}>${calculateTotalPrice(item.lineItems).toFixed(2)}</Text>
         <StatusBadge status={item.status} />
       </View>
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#6474E5" />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <Text style={styles.errorText}>{error}</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Orders</Text>
       <FlatList
-        data={MOCK_ORDERS}
+        data={orders}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         style={styles.list}
@@ -75,6 +110,7 @@ const OrderListScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.lightBg, padding: 16 },
+  centered: { justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 24, fontWeight: 'bold', color: COLORS.primaryText, marginBottom: 16 },
   list: { backgroundColor: '#FFFFFF', borderRadius: 16 },
   row: {
@@ -93,6 +129,7 @@ const styles = StyleSheet.create({
   price: { fontSize: 16, fontWeight: 'bold', color: COLORS.primaryText, marginBottom: 8 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeText: { color: COLORS.white, fontSize: 12, fontWeight: 'bold' },
+  errorText: { color: 'red', fontSize: 16 },
 });
 
 export default OrderListScreen;
