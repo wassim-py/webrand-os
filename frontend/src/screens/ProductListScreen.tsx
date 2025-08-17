@@ -1,33 +1,47 @@
-import React from 'react';
-import { View, Text, FlatList, StyleSheet, SafeAreaView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import apiClient from '../api/client';
 
 interface Variant {
   sku: string;
-  productName: string;
+  product: {
+    name: string;
+  };
   size: string;
   color: string;
   stockOnHand: number;
   standardSellingPrice: number;
 }
 
-const MOCK_VARIANTS: Variant[] = [
-  { sku: 'TS-BLK-S', productName: 'Classic T-Shirt', size: 'S', color: 'Black', stockOnHand: 100, standardSellingPrice: 25.00 },
-  { sku: 'TS-BLK-M', productName: 'Classic T-Shirt', size: 'M', color: 'Black', stockOnHand: 80, standardSellingPrice: 25.00 },
-  { sku: 'TS-WHT-M', productName: 'Classic T-Shirt', size: 'M', color: 'White', stockOnHand: 95, standardSellingPrice: 25.00 },
-  { sku: 'HD-GRY-L', productName: 'Cozy Hoodie', size: 'L', color: 'Gray', stockOnHand: 40, standardSellingPrice: 55.00 },
-  { sku: 'HD-GRY-XL', productName: 'Cozy Hoodie', size: 'XL', color: 'Gray', stockOnHand: 35, standardSellingPrice: 55.00 },
-  { sku: 'JN-BLU-32', productName: 'Denim Jeans', size: '32', color: 'Blue', stockOnHand: 60, standardSellingPrice: 75.00 },
-];
-
 const ProductListScreen = () => {
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchVariants = async () => {
+      try {
+        const response = await apiClient.get('/products');
+        setVariants(response.data);
+      } catch (err) {
+        setError('Failed to fetch product variants.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVariants();
+  }, []);
+
   const renderItem = ({ item }: { item: Variant }) => (
     <View style={styles.row}>
       <Text style={[styles.cell, styles.sku]}>{item.sku}</Text>
-      <Text style={styles.cell}>{item.productName}</Text>
+      <Text style={styles.cell}>{item.product.name}</Text>
       <Text style={styles.cell}>{item.size}</Text>
       <Text style={styles.cell}>{item.color}</Text>
       <Text style={styles.cell}>{item.stockOnHand}</Text>
-      <Text style={styles.cell}>${item.standardSellingPrice.toFixed(2)}</Text>
+      <Text style={styles.cell}>${Number(item.standardSellingPrice).toFixed(2)}</Text>
     </View>
   );
 
@@ -42,11 +56,27 @@ const ProductListScreen = () => {
     </View>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#6474E5" />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <Text style={styles.errorText}>{error}</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Product Variants</Text>
       <FlatList
-        data={MOCK_VARIANTS}
+        data={variants}
         renderItem={renderItem}
         keyExtractor={(item) => item.sku}
         ListHeaderComponent={renderHeader}
@@ -59,13 +89,17 @@ const ProductListScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F7F8', // Light mode background
+    backgroundColor: '#F7F7F8',
     padding: 16,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1C1C1E', // Primary text
+    color: '#1C1C1E',
     marginBottom: 16,
   },
   list: {
@@ -94,11 +128,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#8A8A8E', // Secondary text
+    color: '#8A8A8E',
   },
   sku: {
-    flex: 1.5, // Give more space for SKU
-  }
+    flex: 1.5,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 16,
+  },
 });
 
 export default ProductListScreen;
