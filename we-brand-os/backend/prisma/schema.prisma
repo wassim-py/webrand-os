@@ -1,0 +1,171 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variants          Variant[]
+  marketingCampaigns MarketingCampaign[]
+
+  @@map("products")
+}
+
+model Variant {
+  sku                    String  @id
+  productId              String
+  size                   String?
+  color                  String?
+  costPrice              Decimal @db.Decimal(10, 2)
+  standardSellingPrice   Decimal @db.Decimal(10, 2)
+  stockOnHand           Int     @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  product     Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems  OrderLineItem[]
+  stockHistory StockHistory[]
+
+  @@map("variants")
+}
+
+model StockHistory {
+  id          String   @id @default(cuid())
+  sku         String
+  changeType  String   // "IN", "OUT", "ADJUSTMENT"
+  quantity    Int
+  reason      String?
+  orderId     String?
+  createdAt   DateTime @default(now())
+
+  variant Variant @relation(fields: [sku], references: [sku], onDelete: Cascade)
+
+  @@map("stock_history")
+}
+
+model ShippingZone {
+  wilaya        String  @id
+  stopdeskPrice Decimal @db.Decimal(10, 2)
+  domicilePrice Decimal @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  orders Order[]
+
+  @@map("shipping_zones")
+}
+
+model CurrencyPurchase {
+  id               String   @id @default(cuid())
+  purchaseDate     DateTime
+  currency         String
+  amountBought     Decimal  @db.Decimal(15, 2)
+  exchangeRatePaid Decimal  @db.Decimal(10, 4)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("currency_purchases")
+}
+
+model MarketingCampaign {
+  id              String    @id @default(cuid())
+  campaignName    String
+  productId       String
+  budgetAllocated Decimal   @db.Decimal(10, 2)
+  startDate       DateTime
+  endDate         DateTime
+  status          CampaignStatus @default(PENDING)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("marketing_campaigns")
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PENDING
+  PAUSED
+  ENDED
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  customerName   String
+  phoneNumber    String
+  address        String
+  orderDate      DateTime    @default(now())
+  status         OrderStatus @default(NEW)
+  discount       Decimal?    @db.Decimal(10, 2)
+  shippingMethod String
+  wilaya         String
+  note           String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  shippingZone ShippingZone    @relation(fields: [wilaya], references: [wilaya])
+  lineItems    OrderLineItem[]
+  transactions FinanceLedger[]
+
+  @@map("orders")
+}
+
+enum OrderStatus {
+  NEW
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+model OrderLineItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  sku            String
+  quantity       Int
+  actualSalePrice Decimal @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant Variant @relation(fields: [sku], references: [sku])
+
+  @@map("order_line_items")
+}
+
+model FinanceLedger {
+  id              String    @id @default(cuid())
+  transactionName String
+  date            DateTime  @default(now())
+  type            TransactionType
+  moneyIn         Decimal?  @db.Decimal(15, 2)
+  moneyOut        Decimal?  @db.Decimal(15, 2)
+  orderId         String?
+  createdAt       DateTime  @default(now())
+
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@map("finances_ledger")
+}
+
+enum TransactionType {
+  REVENUE
+  COGS
+  MARKETING
+  RETURN_FEE
+  CURRENCY_PURCHASE
+  OTHER_INCOME
+  OTHER_EXPENSE
+}
