@@ -17,5 +17,6 @@
     "order-management"
   ],
   "author": "WE Brand",
-  "license": "ISC"
+  "license": "ISC",
+  "type": "module"
 }

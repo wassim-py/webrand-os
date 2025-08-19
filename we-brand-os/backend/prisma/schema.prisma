@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  NEW
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PENDING
+  PAUSED
+  ENDED
+}
+
+model Product {
+  id        Int       @id @default(autoincrement())
+  name      String
+  category  String
+  variants  Variant[]
+  campaigns MarketingCampaign[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Variant {
+  sku                   String   @id
+  productId             Int
+  product               Product  @relation(fields: [productId], references: [id])
+  size                  String
+  color                 String
+  costPrice             Decimal  @db.Decimal(10, 2)
+  standardSellingPrice  Decimal  @db.Decimal(10, 2)
+  stockOnHand           Int      @default(0)
+  stockHistories        StockHistory[]
+  lineItems             OrderLineItem[]
+
+  @@index([productId], name: "Variant_product_idx")
+}
+
+model StockHistory {
+  id         Int      @id @default(autoincrement())
+  sku        String
+  variant    Variant  @relation(fields: [sku], references: [sku])
+  change     Int
+  reason     String
+  createdAt  DateTime @default(now())
+}
+
+model ShippingZone {
+  wilaya        String   @id
+  stopdeskPrice Decimal  @db.Decimal(10, 2)
+  domicilePrice Decimal  @db.Decimal(10, 2)
+}
+
+model CurrencyPurchase {
+  id               Int      @id @default(autoincrement())
+  purchaseDate     DateTime
+  currency         String
+  amountBought     Decimal  @db.Decimal(14, 2)
+  exchangeRatePaid Decimal  @db.Decimal(14, 6)
+  createdAt        DateTime @default(now())
+}
+
+model MarketingCampaign {
+  id              Int           @id @default(autoincrement())
+  campaignName    String
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+  budgetAllocated Decimal        @db.Decimal(14, 2)
+  startDate       DateTime
+  endDate         DateTime
+  status          CampaignStatus @default(PENDING)
+  createdAt       DateTime       @default(now())
+}
+
+model Order {
+  id             Int           @id @default(autoincrement())
+  customerName   String
+  phoneNumber    String
+  address        String
+  orderDate      DateTime       @default(now())
+  status         OrderStatus    @default(NEW)
+  discount       Decimal        @db.Decimal(10, 2) @default(0)
+  shippingMethod String
+  wilaya         String
+  note           String?
+  lineItems      OrderLineItem[]
+  ledgerEntries  FinancesLedger[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status], name: "Order_status_idx")
+  @@index([orderDate], name: "Order_orderDate_idx")
+}
+
+model OrderLineItem {
+  id              Int      @id @default(autoincrement())
+  orderId         Int
+  order           Order    @relation(fields: [orderId], references: [id])
+  sku             String
+  variant         Variant  @relation(fields: [sku], references: [sku])
+  quantity        Int
+  actualSalePrice Decimal  @db.Decimal(10, 2)
+}
+
+model FinancesLedger {
+  id              Int      @id @default(autoincrement())
+  transactionName String
+  date            DateTime @default(now())
+  type            String
+  moneyIn         Decimal  @db.Decimal(14, 2) @default(0)
+  moneyOut        Decimal  @db.Decimal(14, 2) @default(0)
+  orderId         Int?
+  order           Order?   @relation(fields: [orderId], references: [id])
+
+  @@index([date], name: "Ledger_date_idx")
+}
